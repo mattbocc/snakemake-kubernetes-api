@@ -25,13 +25,18 @@ class CreatePipeline(Resource):
         warnings = []
         # check if a snakemake and a dvc repo of the same name already exist.
         snakemake_repo_name = re.findall(r'.*/(.*?).git$', pipeline['git_url'])
+        print(snakemake_repo_name)
         snakemake_repo_name = snakemake_repo_name[0] if len(
             snakemake_repo_name) > 0 else None
         dvc_repo_name = re.findall(r'.*/(.*?).git$', pipeline['dvc_git'])
         dvc_repo_name = dvc_repo_name[0] if len(dvc_repo_name) > 0 else None
 
-        if snakemake_repo_name is None or dvc_repo_name is None:
-            warnings.append('Snakemake/DVC repository could not be found.')
+        print(snakemake_repo_name)
+
+        if snakemake_repo_name is None:
+            warnings.append('Snakemake repository could not be found.')
+        elif dvc_repo_name is None:
+            warnings.append('DVC repository could not be found.')
         else:
             found = SnakemakePipeline.objects(name=pipeline['name']).first()
             if found is not None:
