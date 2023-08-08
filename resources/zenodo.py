@@ -7,7 +7,7 @@ import shutil
 from flask_restful import Resource
 from flask import request
 from db.models.snakemake_data_object import SnakemakeDataObject
-from resources.data_object import download
+from resources.list_data_object import download
 from decouple import config
 from util.check_token import check_token
 from util.zenodo_functions.upload import upload
