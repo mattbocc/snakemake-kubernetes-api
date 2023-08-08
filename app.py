@@ -8,11 +8,11 @@ from decouple import config
 
 from resources.create_pipeline import CreatePipeline
 from resources.run_pipeline import RunPipeline
-from resources.pipeline import ListPipeline
-from resources.data_object import ListDataObject, DownloadDataObject
+from resources.list_pipeline import ListPipeline
+from resources.list_data_object import ListDataObject, DownloadDataObject
 from resources.zenodo import ZenodoUpload
 from resources.logs import ListLogs, DownloadLog
-from resources.k8 import K8ErrorPods, K8ErrorLog
+# from resources.k8 import K8ErrorPods, K8ErrorLog
 from resources.test import Test
 from maintenance.pipeline import delete, modify
 
@@ -34,8 +34,8 @@ api.add_resource(DownloadDataObject, '/api/data_object/download')
 api.add_resource(ZenodoUpload, '/api/data_object/upload')
 api.add_resource(ListLogs, '/api/log/list')
 api.add_resource(DownloadLog, '/api/log/download')
-api.add_resource(K8ErrorPods, '/api/k8/error_pods')
-api.add_resource(K8ErrorLog, '/api/k8/pod_log')
+# api.add_resource(K8ErrorPods, '/api/k8/error_pods')
+# api.add_resource(K8ErrorLog, '/api/k8/pod_log')
 api.add_resource(Test, '/api/test')
 
 '''
