@@ -4,6 +4,7 @@ import threading
 import re
 import traceback
 import boto3
+import logging
 import util.run_pipeline_functions.git as git
 from flask_restful import Resource
 from flask import request
@@ -18,7 +19,8 @@ from util.run_pipeline_functions.get_snakemake_cmd import get_snakemake_cmd
 from util.run_pipeline_functions.delete_s3_data import delete_s3_data
 from util.run_pipeline_functions.add_to_dvc import add_to_dvc
 
-# S3 storage client used to interact with a remote object storage.
+# S3 storage client used to interact with a remote object storage
+
 s3_client = boto3.client(
     's3',
     endpoint_url=config('S3_URL'),
@@ -26,6 +28,9 @@ s3_client = boto3.client(
     aws_secret_access_key=config('S3_SECRET_ACCESS_KEY')
 )
 
+log_file = '/home/matthew_boccalon/gunicorn-logs/run_pipeline.log'
+logging.basicConfig(filename=log_file, level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.getLogger().addHandler(logging.StreamHandler())
 '''
 Resource class that triggers a snakemake pipeline run, 
 and adds the finalized data object to dvc repo.
@@ -39,6 +44,8 @@ class RunPipeline(Resource):
     def post(self):
         status = 200
         response = {}
+        
+        logging.info("Beg of post")
 
         # Extract req params
         req_body = request.get_json()
@@ -50,6 +57,8 @@ class RunPipeline(Resource):
         request_parameters = req_body.get('additional_parameters')
 
         pipeline = configure_pipeline(pipeline_name, request_parameters)
+        
+        logging.info("before if")
 
         if pipeline is not None:
             try:
@@ -70,7 +79,7 @@ class RunPipeline(Resource):
                         repo.commit_id = git.get_latest_commit_id(repo.git_url)
 
                     snakemake_cmd = get_snakemake_cmd(pipeline, work_dir)
-                    print(snakemake_cmd)
+                    logging.info(snakemake_cmd)
 
                     delete_s3_data(s3_client, pipeline.name, run_all, preserved_data)
 
@@ -91,23 +100,19 @@ class RunPipeline(Resource):
                     # entry_id = '6427508641c6cf932679f86c'
 
                     # Start the snakemake job.
-                    thread = threading.Thread(
-                        target=run_in_thread,
-                        args=[
-                            snakemake_cmd,
-                            pipeline.name,
-                            dvc_repo_name,
-                            # entry_id
-                            str(entry.id)
-                        ]
-                    )
-                    thread.start()
 
                     response['status'] = 'submitted'
                     response['message'] = 'Pipeline submitted'
                     response['process_id'] = str(entry.id)
                     response['git_url'] = pipeline.git_url
                     response['commit_id'] = git_sha
+
+                    run_in_thread(
+                        snakemake_cmd,
+                        pipeline.name,
+                        dvc_repo_name,
+                        str(entry.id)
+                    )
                 else:
                     response['status'] = 'not_submitted'
                     if (data_object.status.value == 'complete') | (data_object.status.value == 'uploaded'):
@@ -115,8 +120,8 @@ class RunPipeline(Resource):
                     if data_object.status.value == 'processing':
                         response['message'] = 'Another data object is currently being processed with %s pipeline.' % pipeline_name
                     response['object'] = data_object.serialize()
-
             except Exception as e:
+                logging.info("first exception")
                 print('Exception ', e)
                 print(traceback.format_exc())
                 response['error'] = 1
@@ -133,21 +138,21 @@ def run_in_thread(cmd, pipeline_name, dvc_repo_name, object_id):
     try:
         # Execute the snakemake job.
         snakemake_process = subprocess.Popen(
-            cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=0)
         while True:
             line = snakemake_process.stderr.readline()
             if not line:
                 break
             else:
-                print(line.rstrip().decode("utf-8"))
-        print('execution complete')
+                print(line.rstrip().decode("utf-8"), flush=True)
+        logging.info('execution complete')
 
         pipeline = SnakemakePipeline.objects(name=pipeline_name).first()
         obj = SnakemakeDataObject.objects(id=object_id).first()
-        print(pipeline.object_name)
+        logging.info(pipeline.object_name)
 
         if pipeline.object_names is not None:
-            print('multiple files')
+            logging.info('multiple files')
             
             object_files = list()
             # Add each file to DVC with the same file name due to DVC accepting only one file to be tracked.
@@ -167,6 +172,7 @@ def run_in_thread(cmd, pipeline_name, dvc_repo_name, object_id):
             )
         else:
             # Add data file to DVC.
+            logging.info('adding single file to DVC')
             md5 = add_to_dvc(s3_client, pipeline.name, pipeline.object_name, dvc_repo_name)
             if md5:
                 obj.update(
@@ -181,10 +187,10 @@ def run_in_thread(cmd, pipeline_name, dvc_repo_name, object_id):
                     error_message=list({'message': 'md5 not found'})
                 )
         
-        print('complete')
+        logging.info('complete')
     except Exception as e:
         # TO DO: Log error to db and email notification.
-        print('error')
+        logging.info('error')
         obj = SnakemakeDataObject.objects(id=object_id).first()
         obj.update(
             process_end_date=datetime.now(),

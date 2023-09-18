@@ -5,10 +5,10 @@ def get_snakemake_cmd(pipeline, work_dir):
   snakefile_name = pipeline.snakefile if pipeline.snakefile is not None else 'Snakefile'
   print(config('SNAKEMAKE_DOCKER_IMG'))
   snakemake_cmd = [
-      '/home/ubuntu/miniconda3/envs/orcestra-snakemake/bin/snakemake',
+      '/home/matthew_boccalon/miniconda3/envs/orcestra-snakemake/bin/snakemake',
+      '--kubernetes',
       '--snakefile', work_dir + '/' + snakefile_name,
       '--directory', work_dir,
-      '--kubernetes',
       '--container-image', config('SNAKEMAKE_DOCKER_IMG'),
       '--default-remote-prefix', config('S3_BUCKET'),
       '--default-remote-provider', 'S3',
